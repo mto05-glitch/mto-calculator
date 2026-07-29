@@ -15,15 +15,7 @@
             --text: #1e293b;
             --header: #1e293b;
         }
-
-        body { 
-  font-family: 'Inter', system-ui, 'Century Gothic', sans-serif; 
-  background: var(--bg); 
-  color: var(--text); 
-  padding: 0; 
-  margin: 0; 
-  line-height: 1.4; 
-}
+        body { font-family: 'Inter', system-ui, 'Century Gothic', sans-serif; background: var(--bg); color: var(--text); padding: 0; margin: 0; line-height: 1.4; }
         
         /* Top Navigation Header */
         .top-nav { background: var(--header); padding: 12px 25px; color: white; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
@@ -31,7 +23,6 @@
         .top-nav a:hover { background: #60a5fa; color: white; }
 
         .wrapper { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 450px 1fr; gap: 20px; padding: 0 20px 20px 20px; }
-        
         @media (max-width: 1100px) { .wrapper { grid-template-columns: 1fr; } }
 
         .card { background: var(--card); padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; height: fit-content; }
@@ -60,7 +51,7 @@
             opacity: 0.3; transition: 0.2s;
         }
         .lib-item:hover .btn-x { opacity: 1; color: var(--danger); background: #fee2e2; }
-        
+
         .filter-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
         .filter-btn { padding: 6px 12px; background: white; border: 1px solid #cbd5e0; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: #64748b; }
         .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
@@ -72,6 +63,8 @@
         .lib-item { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; position: relative; transition: 0.2s; background: white; display: flex; flex-direction: column; justify-content: center; min-height: 80px; }
         .lib-item.selected { border-color: var(--primary); background: #eff6ff; border-width: 2px; }
         
+        .lib-title-badge { font-size: 0.65rem; color: #2563eb; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+
         .result-box { margin-top: 20px; padding: 20px; background: #f0f9ff; border-radius: 10px; border: 2px solid #bae6fd; display: none; }
         .total-val { font-size: 1.8rem; font-weight: 900; color: #0369a1; }
         .hidden { display: none !important; }
@@ -82,10 +75,11 @@
 
 <div class="top-nav">
     <div><strong>Pro MTO</strong> <span style="font-weight: normal; opacity: 0.7; margin-left: 10px;">| Advanced Material Manager</span></div>
-    <a href="GUIDE.pdf" target="_blank" style="color: #60a5fa; text-decoration: none; font-weight: bold; border: 1px solid #60a5fa; padding: 4px 10px; border-radius: 4px;">📄 Open User Guide</a>
+    <a href="GUIDE.pdf" target="_blank">📄 Open User Guide</a>
 </div>
 
 <div class="wrapper">
+    <!-- MTO Calculator Section -->
     <div class="card calc-section">
         <h2>MTO Calculator</h2>
         <div class="input-group">
@@ -110,6 +104,7 @@
         </div>
     </div>
 
+    <!-- Material Library Section -->
     <div class="card">
         <h3>
             Material Library 
@@ -128,10 +123,17 @@
             <input type="file" id="importFile" class="hidden" onchange="importLibrary(event)">
         </div>
         
+        <!-- Add / Edit Material Form -->
         <div id="addMaterialForm" class="hidden">
-            <div class="input-group" style="margin-bottom: 10px;">
-                <label>Material Name</label>
-                <input type="text" id="newName" placeholder="e.g. 7.25 Hardie Lap">
+            <div class="grid-2" style="margin-bottom: 10px;">
+                <div class="input-group">
+                    <label>Material Title / Category</label>
+                    <input type="text" id="newTitle" placeholder="e.g. Fiber Cement">
+                </div>
+                <div class="input-group">
+                    <label>Material Name</label>
+                    <input type="text" id="newName" placeholder="e.g. 7.25 Hardie Lap">
+                </div>
             </div>
             <div class="grid-2">
                 <div class="input-group">
@@ -171,9 +173,9 @@
 
 <script>
     let library = JSON.parse(localStorage.getItem('mto_library')) || [
-        { name: "Hardie Lap Siding", type: "lap", d1: 8.25, d2: 1.25, len: 12, waste: 10 },
-        { name: "Starter Strip", type: "trim", d1: 0, d2: 0, len: 12, waste: 5 },
-        { name: "House Wrap Roll", type: "envelope", d1: 9, d2: 6, len: 100, waste: 5 }
+        { title: "Fiber Cement Siding", name: "Hardie Lap Siding", type: "lap", d1: 8.25, d2: 1.25, len: 12, waste: 10 },
+        { title: "Aluminum Profile", name: "Starter Strip", type: "trim", d1: 0, d2: 0, len: 12, waste: 5 },
+        { title: "Weather Barrier", name: "House Wrap Roll", type: "envelope", d1: 9, d2: 6, len: 100, waste: 5 }
     ];
 
     let activeMat = null;
@@ -221,7 +223,7 @@
             btn.innerText = "× Cancel";
         } else {
             form.classList.add('hidden');
-            btn.innerText = "+ Add Profile";
+            btn.innerText = "+ Add Material";
             resetForm();
         }
     }
@@ -229,10 +231,12 @@
     function resetForm() {
         editIndex = -1;
         document.getElementById('saveBtn').innerText = "Save";
+        document.getElementById('newTitle').value = "";
         document.getElementById('newName').value = "";
         document.getElementById('newDim1').value = "";
         document.getElementById('newDim2').value = "";
         document.getElementById('newLen').value = "";
+        document.getElementById('newWaste').value = "";
     }
 
     function toggleFormFields() {
@@ -248,7 +252,8 @@
 
     function saveMaterial() {
         const mat = {
-            name: document.getElementById('newName').value,
+            title: document.getElementById('newTitle').value.trim() || "General Material",
+            name: document.getElementById('newName').value.trim(),
             type: document.getElementById('newType').value,
             d1: parseFloat(document.getElementById('newDim1').value) || 0,
             d2: parseFloat(document.getElementById('newDim2').value) || 0,
@@ -265,6 +270,7 @@
     function editMaterial(index) {
         editIndex = index;
         const m = library[index];
+        document.getElementById('newTitle').value = m.title || "";
         document.getElementById('newName').value = m.name;
         document.getElementById('newType').value = m.type;
         document.getElementById('newDim1').value = m.d1;
@@ -320,10 +326,12 @@
             if (currentFilter !== 'all' && m.type !== currentFilter) return;
             const div = document.createElement('div');
             div.className = `lib-item ${activeMat === m ? 'selected' : ''}`;
+            div.title = `${m.title || 'General Material'}: ${m.name}`;
             div.onclick = () => selectMaterial(i);
             div.ondblclick = () => editMaterial(i);
             div.innerHTML = `
                 <div class="btn-x" onclick="deleteMat(event, ${i})">×</div>
+                <div class="lib-title-badge">${m.title || 'General Material'}</div>
                 <strong>${m.name}</strong>
                 <span>${m.len}' Length | ${m.waste}% Waste</span>
             `;
@@ -335,6 +343,5 @@
     function updateUI() { renderLibrary(); toggleFormFields(); }
     updateUI();
 </script>
-
 </body>
 </html>

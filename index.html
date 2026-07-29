@@ -53,8 +53,13 @@
         .lib-item:hover .btn-x { opacity: 1; color: var(--danger); background: #fee2e2; }
 
         .filter-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
-        .filter-btn { padding: 6px 12px; background: white; border: 1px solid #cbd5e0; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: #64748b; }
+        .filter-btn { padding: 6px 12px; background: white; border: 1px solid #cbd5e0; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; color: #64748b; display: inline-flex; align-items: center; gap: 4px; }
         .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .filter-btn .cat-del { display: none; font-size: 10px; font-weight: bold; border-radius: 50%; width: 14px; height: 14px; background: rgba(0,0,0,0.15); color: white; text-align: center; line-height: 14px; margin-left: 3px; }
+        .filter-btn:hover .cat-del { display: inline-block; }
+        
+        .btn-add-cat { background: #eff6ff; color: var(--primary); border: 1px dashed var(--primary); }
+        .btn-add-cat:hover { background: #dbeafe; }
         .tool-btn { background: #f8fafc; border: 1px solid #cbd5e0; }
 
         .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); font-size: 0.7rem; padding: 5px 10px; }
@@ -111,12 +116,11 @@
             <button class="btn btn-outline" onclick="toggleAddForm()" id="toggleBtn">+ Add Material</button>
         </h3>
 
-        <div class="filter-bar">
-            <button class="filter-btn active" onclick="filterLibrary('all', this)">All</button>
-            <button class="filter-btn" onclick="filterLibrary('lap', this)">Lap</button>
-            <button class="filter-btn" onclick="filterLibrary('panel', this)">Panels</button>
-            <button class="filter-btn" onclick="filterLibrary('trim', this)">Trim</button>
-            <button class="filter-btn" onclick="filterLibrary('envelope', this)">Envelope</button>
+        <!-- Filter Bar with Dynamic Categories -->
+        <div class="filter-bar" id="filterBar">
+            <div id="categoryButtonsContainer" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
+            <button class="filter-btn btn-add-cat" onclick="promptAddCategory()">+ Add Category</button>
+            
             <div style="flex-grow: 1;"></div>
             <button class="filter-btn tool-btn" onclick="exportLibrary()">💾 Export</button>
             <button class="filter-btn tool-btn" onclick="document.getElementById('importFile').click()">📂 Import</button>
@@ -127,7 +131,7 @@
         <div id="addMaterialForm" class="hidden">
             <div class="grid-2" style="margin-bottom: 10px;">
                 <div class="input-group">
-                    <label>Material Title / Category</label>
+                    <label>Material Title / Sub-Category</label>
                     <input type="text" id="newTitle" placeholder="e.g. Fiber Cement">
                 </div>
                 <div class="input-group">
@@ -137,12 +141,9 @@
             </div>
             <div class="grid-2">
                 <div class="input-group">
-                    <label>Type</label>
+                    <label>Category / Type</label>
                     <select id="newType" onchange="toggleFormFields()">
-                        <option value="lap">Lap Siding (SF)</option>
-                        <option value="panel">Standard Panel (SF)</option>
-                        <option value="trim">Trim / Profile (LF)</option>
-                        <option value="envelope">Envelope (Rolls)</option>
+                        <!-- Options dynamically populated by JS -->
                     </select>
                 </div>
                 <div class="input-group" id="dim1Group">
@@ -172,6 +173,14 @@
 </div>
 
 <script>
+    // Initial Categories list
+    let categories = JSON.parse(localStorage.getItem('mto_categories')) || [
+        { id: "lap", name: "Lap", calcType: "lap" },
+        { id: "panel", name: "Panels", calcType: "panel" },
+        { id: "trim", name: "Trim", calcType: "trim" },
+        { id: "envelope", name: "Envelope", calcType: "envelope" }
+    ];
+
     let library = JSON.parse(localStorage.getItem('mto_library')) || [
         { title: "Fiber Cement Siding", name: "Hardie Lap Siding", type: "lap", d1: 8.25, d2: 1.25, len: 12, waste: 10 },
         { title: "Aluminum Profile", name: "Starter Strip", type: "trim", d1: 0, d2: 0, len: 12, waste: 5 },
@@ -182,8 +191,86 @@
     let editIndex = -1;
     let currentFilter = 'all';
 
+    function getCategoryCalcType(catId) {
+        const cat = categories.find(c => c.id === catId);
+        return cat ? cat.calcType : catId;
+    }
+
+    function promptAddCategory() {
+        const catName = prompt("Enter new Category Name (e.g., Soffit, Flashings, Shingles):");
+        if (!catName || !catName.trim()) return;
+
+        const sanitizedId = catName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+        
+        if (categories.some(c => c.id === sanitizedId)) {
+            return alert("A category with this name already exists.");
+        }
+
+        const calcTypeChoice = prompt(
+            `Select calculation type for "${catName.trim()}":\n` +
+            `1: Lap Siding (SF with Overlap)\n` +
+            `2: Standard Panel (SF)\n` +
+            `3: Trim / Profile (LF Linear Feet)\n` +
+            `4: Envelope (Rolls)\n\n` +
+            `Enter number (1-4):`,
+            "1"
+        );
+
+        let calcType = 'lap';
+        if (calcTypeChoice === '2') calcType = 'panel';
+        else if (calcTypeChoice === '3') calcType = 'trim';
+        else if (calcTypeChoice === '4') calcType = 'envelope';
+
+        categories.push({
+            id: sanitizedId,
+            name: catName.trim(),
+            calcType: calcType
+        });
+
+        localStorage.setItem('mto_categories', JSON.stringify(categories));
+        updateUI();
+    }
+
+    function deleteCategory(catId, event) {
+        event.stopPropagation();
+        if (confirm(`Delete category "${catId}"? Materials in this category will remain.`)) {
+            categories = categories.filter(c => c.id !== catId);
+            localStorage.setItem('mto_categories', JSON.stringify(categories));
+            if (currentFilter === catId) currentFilter = 'all';
+            updateUI();
+        }
+    }
+
+    function renderCategories() {
+        const container = document.getElementById('categoryButtonsContainer');
+        container.innerHTML = `
+            <button class="filter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="filterLibrary('all', this)">All</button>
+        `;
+
+        categories.forEach(cat => {
+            const btn = document.createElement('button');
+            btn.className = `filter-btn ${currentFilter === cat.id ? 'active' : ''}`;
+            btn.onclick = (e) => filterLibrary(cat.id, btn);
+            
+            // Allow deleting custom added categories
+            const isCustom = !['lap', 'panel', 'trim', 'envelope'].includes(cat.id);
+            btn.innerHTML = `
+                ${cat.name}
+                ${isCustom ? `<span class="cat-del" onclick="deleteCategory('${cat.id}', event)">×</span>` : ''}
+            `;
+            container.appendChild(btn);
+        });
+
+        // Populate Form Select Dropdown
+        const typeSelect = document.getElementById('newType');
+        typeSelect.innerHTML = categories.map(c => `
+            <option value="${c.id}">${c.name} (${c.calcType.toUpperCase()})</option>
+        `).join('');
+    }
+
     function exportLibrary() {
-        const dataStr = JSON.stringify(library, null, 2);
+        const exportData = { categories, library };
+        const dataStr = JSON.stringify(exportData, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -200,9 +287,15 @@
             try {
                 const data = JSON.parse(e.target.result);
                 if (Array.isArray(data)) {
-                    if(confirm("Import items?")) { library = [...data, ...library]; updateUI(); }
+                    if(confirm("Import materials?")) { library = [...data, ...library]; updateUI(); }
+                } else if (data.library) {
+                    if(confirm("Import library data?")) {
+                        if (data.categories) categories = [...categories, ...data.categories.filter(c => !categories.some(ex => ex.id === c.id))];
+                        library = [...data.library, ...library];
+                        updateUI();
+                    }
                 }
-            } catch (err) { alert("Error."); }
+            } catch (err) { alert("Error reading file."); }
         };
         reader.readAsText(file);
     }
@@ -210,7 +303,7 @@
     function filterLibrary(type, btn) {
         currentFilter = type;
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+        if (btn) btn.classList.add('active');
         renderLibrary();
     }
 
@@ -240,14 +333,16 @@
     }
 
     function toggleFormFields() {
-        const type = document.getElementById('newType').value;
+        const catId = document.getElementById('newType').value;
+        const calcType = getCategoryCalcType(catId);
+        
         const d1G = document.getElementById('dim1Group'), d2G = document.getElementById('dim2Group');
         const d1L = document.getElementById('dim1Label'), d2L = document.getElementById('dim2Label');
         d1G.classList.remove('hidden'); d2G.classList.remove('hidden');
-        if (type === 'lap') { d1L.innerText = "Width (in)"; d2L.innerText = "Overlap (in)"; }
-        else if (type === 'panel') { d1L.innerText = "Width (ft)"; d2G.classList.add('hidden'); }
-        else if (type === 'trim') { d1G.classList.add('hidden'); d2G.classList.add('hidden'); }
-        else if (type === 'envelope') { d1L.innerText = "Width (ft)"; d2L.innerText = "Overlap (in)"; }
+        if (calcType === 'lap') { d1L.innerText = "Width (in)"; d2L.innerText = "Overlap (in)"; }
+        else if (calcType === 'panel') { d1L.innerText = "Width (ft)"; d2G.classList.add('hidden'); }
+        else if (calcType === 'trim') { d1G.classList.add('hidden'); d2G.classList.add('hidden'); }
+        else if (calcType === 'envelope') { d1L.innerText = "Width (ft)"; d2L.innerText = "Overlap (in)"; }
     }
 
     function saveMaterial() {
@@ -284,14 +379,15 @@
 
     function deleteMat(e, index) {
         e.stopPropagation();
-        if(confirm("Remove?")) { library.splice(index, 1); updateUI(); }
+        if(confirm("Remove material?")) { library.splice(index, 1); updateUI(); }
     }
 
     function selectMaterial(index) {
         activeMat = library[index];
+        const calcType = getCategoryCalcType(activeMat.type);
         document.getElementById('calcWaste').value = activeMat.waste;
-        document.getElementById('calcUnit').value = activeMat.type === 'trim' ? 'Pcs (LF)' : (activeMat.type === 'envelope' ? 'Rolls' : 'Pcs (SF)');
-        document.getElementById('mainValLabel').innerText = activeMat.type === 'trim' ? 'Total Footage (LF)' : 'Total Area (SF)';
+        document.getElementById('calcUnit').value = calcType === 'trim' ? 'Pcs (LF)' : (calcType === 'envelope' ? 'Rolls' : 'Pcs (SF)');
+        document.getElementById('mainValLabel').innerText = calcType === 'trim' ? 'Total Footage (LF)' : 'Total Area (SF)';
         renderLibrary();
     }
 
@@ -300,21 +396,25 @@
         const input = parseFloat(document.getElementById('calcInput').value);
         const waste = 1 + (parseFloat(document.getElementById('calcWaste').value) / 100);
         if (!input) return alert("Enter measurement.");
+        
+        const calcType = getCategoryCalcType(activeMat.type);
         let cov = 0; let b = "";
-        if (activeMat.type === 'lap') {
+        
+        if (calcType === 'lap') {
             cov = ((activeMat.d1 - activeMat.d2) / 12) * activeMat.len;
             b = `Exposure: ${activeMat.d1 - activeMat.d2}" | Piece: ${cov.toFixed(2)} SF`;
-        } else if (activeMat.type === 'panel') {
+        } else if (calcType === 'panel') {
             cov = activeMat.d1 * activeMat.len;
             b = `Panel Yield: ${cov.toFixed(2)} SF`;
-        } else if (activeMat.type === 'trim') {
+        } else if (calcType === 'trim') {
             cov = activeMat.len; b = `Piece: ${cov} LF`;
-        } else if (activeMat.type === 'envelope') {
+        } else if (calcType === 'envelope') {
             cov = activeMat.d1 * (activeMat.len - (activeMat.d2 / 12));
             b = `Net Roll SF: ${cov.toFixed(2)}`;
         }
+        
         const total = Math.ceil((input / cov) * waste);
-        document.getElementById('resTotal').innerText = `${total} ${activeMat.type === 'envelope' ? 'Rolls' : 'Pcs'}`;
+        document.getElementById('resTotal').innerText = `${total} ${calcType === 'envelope' ? 'Rolls' : 'Pcs'}`;
         document.getElementById('resBreakdown').innerText = b;
         document.getElementById('results').style.display = 'block';
     }
@@ -340,7 +440,12 @@
         localStorage.setItem('mto_library', JSON.stringify(library));
     }
 
-    function updateUI() { renderLibrary(); toggleFormFields(); }
+    function updateUI() {
+        renderCategories();
+        renderLibrary();
+        toggleFormFields();
+    }
+    
     updateUI();
 </script>
 </body>
